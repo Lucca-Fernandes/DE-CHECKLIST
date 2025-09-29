@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Chave da API Gemini</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f4f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; }
+        input { width: 95%; padding: 10px; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #result { margin-top: 1rem; font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Teste Rápido da Chave de API Gemini</h1>
+        <p>Cole a nova chave de API (gerada no Google AI Studio) e clique em testar.</p>
+        <input type="text" id="apiKeyInput" placeholder="Sua nova chave de API aqui">
+        <button onclick="runTest()">Testar Chave</button>
+        <div id="result"></div>
+    </div>
+
+    <script type="module">
+        import { GoogleGenerativeAI } from 'https://esm.run/@google/generative-ai';
+
+        window.runTest = async function() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const resultDiv = document.getElementById('result');
+
+            if (!apiKey) {
+                resultDiv.className = 'error';
+                resultDiv.textContent = 'Erro: Por favor, insira uma chave de API.';
+                return;
+            }
+
+            resultDiv.className = '';
+            resultDiv.textContent = 'Testando...';
+
+            try {
+                const genAI = new GoogleGenerativeAI(apiKey);
+                const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+                const prompt = "Diga 'Olá, mundo!'";
+                
+                const result = await model.generateContent(prompt);
+                const response = await result.response;
+                const text = response.text();
+
+                resultDiv.className = 'success';
+                resultDiv.textContent = 'Sucesso! A API respondeu: "' + text + '"';
+
+            } catch (error) {
+                console.error(error);
+                resultDiv.className = 'error';
+                resultDiv.textContent = 'Falha no teste. Verifique o console (F12) para ver o erro detalhado.';
+            }
+        }
+    </script>
+
+</body>
+</html>

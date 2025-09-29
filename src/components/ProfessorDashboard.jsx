@@ -1,0 +1,193 @@
+// src/components/ProfessorDashboard.jsx
+import React, { useState } from 'react';
+import { Container, Grid, Typography, Box, LinearProgress, Paper, Button } from '@mui/material';
+import FileUploadSection from './FileUploadSection';
+import ResultsModal from './ResultsModal';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import mammoth from "mammoth";
+
+const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+const ProfessorDashboard = () => {
+    const [professorFile, setProfessorFile] = useState(null);
+    const [analysisResult, setAnalysisResult] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const fullCriteriaList = [
+        { id: 1, displayText: "Verificação no Plágius.", type: 'manual' },
+        { id: 2, displayText: "Verificar se possui a palavra 'Aluno' e substituir por 'Estudante'.", type: 'auto' },
+        { id: 3, textForAI: "Este critério deve ser SEMPRE 'Aprovado'. Apenas identifique se o nome de um curso ou componente curricular (CC) é mencionado. Na 'justificativa', descreva o que encontrou e onde. Exemplo: 'O componente curricular \"Motion Design\" foi citado na seção INFORMAÇÕES GERAIS.' Se nada for encontrado, a justificativa deve ser uma string vazia.", displayText: "Verificar se é citado o nome do curso, já que o CC pode ser comum a outro Cursos.", type: 'auto' },        
+        { id: 4, textForAI: "Sua análise deve se basear nas evidências textuais da presença de uma imagem (tags como '#IMAGEM#', legendas como 'Figura 1', etc.), já que você não pode ver a imagem em si. Para cada evidência de imagem encontrada, verifique no texto adjacente (geralmente abaixo) se há uma linha de 'Fonte:' com a referência completa. Se você encontrar evidências de uma ou mais imagens que NÃO possuem uma linha de 'Fonte:' completa e adjacente, o critério deve ser 'Reprovado' e a justificativa deve citar a localização da imagem sem fonte. Se todas as imagens identificadas possuírem uma fonte completa, ou se nenhuma imagem for identificada no texto, o critério é 'Aprovado'.", displayText: "Verificar se há referência e Fonte completa nas imagens e recursos visuais utilizados pelo autor. (Obs: Preferência por Shutterstock com indicação de ID).", type: 'auto' },        
+        { id: 5, displayText: "Verificar se o quadro inicial (Planejamento das aulas) com Conhecimentos e estratégias de ensino está preenchido.", type: 'auto' },
+        { id: 6, displayText: "Verificar se consta no livro os objetivos de aprendizagem.", type: 'auto' },
+        { id: 7, textForAI: "Para CADA capítulo do documento, verificar se as seis seções a seguir estão presentes e NA ORDEM CORRETA: 1 Contextualizando, 1 Conectando, 1 Aprofundando, 1 Praticando, 1 Recapitulando e 1 Exercitando.", displayText: "Verificar a ordem de seções por capítulo: 1 Contextualizando, 1 Conectando, 1 Aprofundando, 1 Praticando, 1 Recapitulando e 1 Exercitando.", type: 'auto' },
+        { id: 8, displayText: "Verificar se o conteúdo abordado em cada seção didática atende à proposta e à sua função.", type: 'auto' },
+        { id: 9, displayText: "Verificar se o conteúdo abordado no livro do professor está coerente e compatível com o que foi abordado no livro do estudante.", type: 'manual' },
+        { id: 10, displayText: "Verificar se a linguagem está clara, coerente e com fluxo lógico apresentando os conceitos de forma progressiva.", type: 'auto' },
+        { id: 11, displayText: "Verificar se os links estão funcionando e ativos e se estão adequados ao tema.", type: 'manual' },
+        { id: 12, displayText: "Verificar se há indicações para os professores de materiais de apoio, como sugestões de recursos adicionais, slides, gráficos ou ferramentas digitais.", type: 'auto' },
+        { id: 13, displayText: "Verificar se há analogias e exemplos com o cotidiano, para relacionar os conceitos do livro a situações práticas.", type: 'auto' },
+        { id: 14, displayText: "Verificar se há indicações de discussões e interações propostas, como dinâmicas, perguntas norteadoras ou debates para facilitar o trabalho do professor.", type: 'auto' },
+        { id: 15, displayText: "Verificar se há gabarito comentado e justificativa das respostas corretas e incorretas nas questões dos exercícios.", type: 'auto' },
+        { id: 16, displayText: "Verificar se há conteúdos extras ou complementares para auxiliar o professor, como indicações de vídeos, livros, filmes, artigos, simuladores, tutoriais.", type: 'auto' },
+        { id: 17, displayText: "Verificar se há indicação de Atividades extras e Bibliografia complementar para o professor.", type: 'auto' },
+        { id: 18, displayText: "Verificar referências bibliográficas no final do livro.", type: 'auto' },
+        { id: 19, displayText: "Verificar se há as Marcações de Capítulos, Seções e SubTags (#) nos livros.", type: 'auto' },
+        { id: 20, displayText: "Verificar o padrão de nomeação dos arquivos, conforme encaminhado pela Ponto Edu.", type: 'manual' },
+        { id: 21, displayText: "Indicar para o coordenador do eixo quando houver alto índice de textos gerados por IA.", type: 'auto' },
+        { id: 22, displayText: "Verificar se o conteúdo do PPT destinado à videoaula do professor, está coerente com o conteúdo trabalhado no livro do professor.", type: 'manual' },
+        { id: 23, displayText: "Verificar e organizar o Documento de pendências para os autores, quando necessário, conforme o padrão estabelecido pela Ponto Edu.", type: 'manual' },
+        { id: 24, displayText: "Resolver as pendências/ajustes nos livros, conforme as respostas dos autores.", type: 'manual' }
+    ];
+
+    const extractTextFromFile = (file) => {
+        return new Promise((resolve, reject) => {
+            if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document") {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const arrayBuffer = event.target.result;
+                    try {
+                        const result = await mammoth.extractRawText({ arrayBuffer });
+                        resolve(result.value);
+                    } catch (err) { reject(err); }
+                };
+                reader.onerror = (error) => reject(error);
+                reader.readAsArrayBuffer(file);
+            } else {
+                reject(new Error("Formato de arquivo não suportado. Use .docx"));
+            }
+        });
+    };
+
+    const handleProfessorAnalysis = async () => {
+        if (!professorFile) return;
+        setIsLoading(true);
+        setAnalysisResult(null);
+        setError(null);
+        
+        const criteriaForAI = fullCriteriaList.filter(c => c.type === 'auto');
+        
+        try {
+            const extractedText = await extractTextFromFile(professorFile);
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            const prompt = `
+                Você é um especialista em análise de conteúdo pedagógico para materiais de professores. Sua tarefa é analisar a APOSTILA DO PROFESSOR e avaliá-la com base nos seguintes critérios.
+                Sua resposta deve ser APENAS UM OBJETO JSON VÁLIDO.
+                Para cada critério, determine o status como "Aprovado" ou "Reprovado".
+                Para critérios REPROVADOS, a 'justificativa' é OBRIGATÓRIA e deve ser detalhada.
+                Para critérios APROVADOS, a 'justificativa' deve ser uma string vazia "".
+
+                LISTA DE CRITÉRIOS PARA ANÁLISE:
+                ${criteriaForAI.map(c => `${c.id}. ${c.textForAI || c.displayText}`).join('\n')}
+
+                APOSTILA COMPLETA PARA ANÁLISE:
+                ---
+                ${extractedText}
+                ---
+
+                FORMATO JSON DE SAÍDA OBRIGATÓRIO:
+                {"analise": [{"criterio": <number>, "status": "<Aprovado ou Reprovado>", "justificativa": "<string>"}]}
+            `;
+
+            const result = await model.generateContent(prompt);
+            const response = await result.response;
+            let text = response.text();
+            let jsonResponse;
+            
+            try {
+                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+                const startIndex = text.indexOf('{');
+                const endIndex = text.lastIndexOf('}');
+                if (startIndex > -1 && endIndex > -1 && endIndex > startIndex) {
+                    const jsonString = text.substring(startIndex, endIndex + 1);
+                    jsonResponse = JSON.parse(jsonString);
+                } else {
+                    throw new Error("Nenhum objeto JSON válido foi encontrado na resposta.");
+                }
+            } catch (parseError) {
+                console.error("Erro ao fazer o parse do JSON da API:", parseError);
+                throw new Error("A resposta da API não estava em um formato JSON válido.");
+            }
+
+            const approvedCount = jsonResponse.analise.filter(item => item.status === 'Aprovado').length;
+            const totalAutoCriteria = criteriaForAI.length;
+            const score = totalAutoCriteria > 0 ? Math.round((approvedCount / totalAutoCriteria) * 100) : 0;
+
+            const finalAnalysis = fullCriteriaList.map(criterion => {
+                const autoResult = jsonResponse.analise.find(item => item.criterio === criterion.id);
+                return {
+                    criterio: criterion.id,
+                    descricao: criterion.displayText,
+                    status: criterion.type === 'manual' ? 'Análise Manual' : (autoResult ? autoResult.status : 'Erro'),
+                    justificativa: autoResult ? autoResult.justificativa : ''
+                };
+            });
+
+            setAnalysisResult({
+                pontuacaoFinal: score,
+                analise: finalAnalysis
+            });
+            setIsModalOpen(true);
+        } catch (e) {
+            console.error(e);
+            setError("Ocorreu um erro ao analisar o documento.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+            <Grid container justifyContent="center">
+                <Grid item xs={12} md={8}>
+                    <FileUploadSection
+                        title="Versão do Professor"
+                        onFileSelect={setProfessorFile}
+                        onAnalyze={handleProfessorAnalysis}
+                        isLoading={isLoading}
+                    />
+                </Grid>
+            </Grid>
+
+            {isLoading && (
+                <Box sx={{ width: '100%', mt: 4 }}>
+                    <Typography textAlign="center" sx={{ mb: 1 }}>Analisando documento...</Typography>
+                    <LinearProgress />
+                </Box>
+            )}
+
+            {error && (
+                <Typography color="error" sx={{ textAlign: 'center', mt: 4 }}>
+                    {error}
+                </Typography>
+            )}
+            
+            {!isLoading && analysisResult && (
+                <Paper elevation={3} sx={{ mt: 4, p: 3, textAlign: 'center' }}>
+                    <Typography variant="h5" gutterBottom>Análise Concluída</Typography>
+                    <Typography variant="h6">
+                        Pontuação da Análise Automática: {analysisResult.pontuacaoFinal}%
+                    </Typography>
+                    <Button 
+                        variant="contained" 
+                        sx={{ mt: 2 }} 
+                        onClick={() => setIsModalOpen(true)}
+                    >
+                        Ver Relatório Detalhado
+                    </Button>
+                </Paper>
+            )}
+            
+            <ResultsModal 
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                results={analysisResult}
+            />
+        </Container>
+    );
+};
+
+export default ProfessorDashboard;
