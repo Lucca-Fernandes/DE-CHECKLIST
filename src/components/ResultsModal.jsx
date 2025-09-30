@@ -1,6 +1,6 @@
 // src/components/ResultsModal.jsx
-import React from 'react';
-import { Modal, Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, IconButton, Tooltip } from '@mui/material';
+import React, { useState, useEffect } from 'react';
+import { Modal, Box, Typography, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Chip, IconButton, Tooltip, Button } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 
@@ -21,6 +21,14 @@ const style = {
 };
 
 const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSuggestions = [] }) => {
+    // NOVO: Estado para controlar a exibição dos critérios
+    const [showAll, setShowAll] = useState(false);
+
+    // NOVO: Efeito para resetar a visualização sempre que um novo resultado for carregado
+    useEffect(() => {
+        setShowAll(false);
+    }, [results]);
+
     if (!results) return null;
 
     const getStatusChip = (status, manualEdit) => {
@@ -29,13 +37,29 @@ const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSug
         return <Chip label={label} color={color} size="small" />;
     };
 
+    // NOVO: Lógica de filtragem dos resultados
+    const reprovados = results.analise.filter(item => item.status === 'Reprovado');
+    const itemsToDisplay = showAll ? results.analise : reprovados;
+
     return (
         <Modal open={open} onClose={onClose}>
             <Box sx={style}>
-                <Box>
-                    <Typography variant="h5" gutterBottom>Relatório de Análise Detalhado</Typography>
-                    <Typography variant="h6" gutterBottom>Pontuação Final: {results.pontuacaoFinal}%</Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Box>
+                        <Typography variant="h5" gutterBottom>Relatório de Análise Detalhado</Typography>
+                        <Typography variant="h6" gutterBottom>Pontuação Final: {results.pontuacaoFinal}%</Typography>
+                    </Box>
+                    {/* NOVO: Botão para alternar a visualização */}
+                    <Button 
+                        variant="outlined" 
+                        size="small"
+                        onClick={() => setShowAll(!showAll)}
+                        sx={{ flexShrink: 0 }}
+                    >
+                        {showAll ? `Mostrar Apenas Reprovados (${reprovados.length})` : `Mostrar Todos os Critérios (${results.analise.length})`}
+                    </Button>
                 </Box>
+
                 <TableContainer component={Paper} sx={{ flexGrow: 1, overflowY: 'auto', mt: 2 }}>
                     <Table stickyHeader>
                         <TableHead>
@@ -47,7 +71,8 @@ const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSug
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {results.analise.map((item) => {
+                            {/* ATUALIZADO: Mapeia sobre os itens filtrados */}
+                            {itemsToDisplay.map((item) => {
                                 const hasSuggestion = onEditCriterion && criteriaWithSuggestions.includes(item.criterio);
 
                                 return (

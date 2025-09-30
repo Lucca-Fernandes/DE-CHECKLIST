@@ -10,7 +10,8 @@ import mammoth from "mammoth";
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-const criteriaWithSuggestions = [2, 3, 18, 22];
+// ATUALIZADO: O critério 3 foi removido desta lista.
+const criteriaWithSuggestions = [2, 18, 22];
 
 const AnalysisDashboard = () => {
     const [studentFile, setStudentFile] = useState(null);
@@ -92,11 +93,6 @@ const AnalysisDashboard = () => {
                 persona = "Você é um assistente de editoração e organização de documentos, atento a detalhes de estrutura e consistência.";
                 correctionTask = "Sua tarefa é ler o sumário e os títulos dos capítulos no corpo do texto e criar uma versão corrigida do sumário. A sugestão deve ser um ARRAY DE STRINGS, onde cada string é uma linha do novo sumário.";
                 outputFormat += ` Exemplo: {"correcoes": [{"original": "Sumário atual com inconsistências.", "sugestao": ["1. Título do Capítulo 1 Corrigido", "2. Título do Capítulo 2 Corrigido"], "contexto": "O sumário precisa ser atualizado para refletir os títulos reais dos capítulos."}]}`;
-                break;
-            case 3:
-                persona = "Você é um revisor de texto atento aos detalhes e focado em consistência terminológica.";
-                correctionTask = "Sua tarefa é encontrar todas as ocorrências da palavra 'aluno' (e suas variações) e fornecer as substituições pela palavra 'estudante' (e suas variações).";
-                outputFormat += ` Exemplo: {"correcoes": [{"original": "...base para o aluno realizar...", "sugestao": "...base para o estudante realizar...", "contexto": "Encontrado no Capítulo X, seção Y."}]}`;
                 break;
             case 18:
                 persona = "Você é um especialista em design instrucional e um redator pedagógico criativo.";
@@ -186,22 +182,24 @@ const AnalysisDashboard = () => {
             setFileContent(extractedText);
             const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
             const prompt = `
-                Você é um especialista em análise de conteúdo pedagógico, extremamente detalhista e rigoroso. Sua tarefa é analisar a APOSTILA COMPLETA fornecida e avaliá-la com base em uma lista de critérios.
-                **INSTRUÇÕES GERAIS:**
-                1. Analise o documento inteiro para ter o contexto completo antes de julgar cada critério.
-                2. Sua resposta final deve ser APENAS UM OBJETO JSON VÁLIDO.
-                **INSTRUÇÕES PARA A ANÁLISE DE CADA CRITÉRIO:**
-                - Para cada critério na lista, determine o status como "Aprovado" ou "Reprovado".
-                - Para critérios REPROVADOS, a 'justificativa' é OBRIGATÓRIA e deve ser de ALTA QUALIDADE, citando evidências (exemplos curtos) do texto e a localização do problema, se possível.
+                Você é um especialista em análise de conteúdo pedagógico para materiais de estudantes. Sua tarefa é analisar a APOSTILA e avaliá-la com base nos seguintes critérios.
+                Sua resposta deve ser APENAS UM OBJETO JSON VÁLIDO.
+                Para cada critério, determine o status como "Aprovado" ou "Reprovado".
+
+                **INSTRUÇÃO IMPORTANTE PARA JUSTIFICATIVA:**
                 - Para critérios APROVADOS, a 'justificativa' deve ser uma string vazia "".
+                - Para critérios REPROVADOS, a 'justificativa' deve ser **curta e cirúrgica**, apontando **apenas um ou dois exemplos claros** do problema e sua localização (Capítulo e Seção, se possível). Não liste todas as ocorrências.
+
                 **LISTA DE CRITÉRIOS PARA ANÁLISE:**
                 ${criteriaForAI.map(c => `${c.id}. ${c.textForAI || c.displayText}`).join('\n')}
+                
                 **APOSTILA COMPLETA PARA ANÁLISE:**
                 ---
                 ${extractedText}
                 ---
+                
                 **FORMATO JSON DE SAÍDA OBRIGATÓRIO (sem pontuacaoFinal):**
-                {"analise": [{"criterio": <number>, "status": "<Aprovado ou Reprovado>", "justificativa": "<string detalhada se Reprovado>"}]}
+                {"analise": [{"criterio": <number>, "status": "<Aprovado ou Reprovado>", "justificativa": "<string>"}]}
             `;
             const result = await model.generateContent(prompt);
             const response = await result.response;
