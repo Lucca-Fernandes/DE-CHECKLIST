@@ -6,6 +6,8 @@ import ResultsModal from './ResultsModal';
 import CorrectionModal from './CorrectionModal';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mammoth from "mammoth";
+import jsPDF from 'jspdf'; // <-- IMPORTADO
+import 'jspdf-autotable'; // <-- IMPORTADO
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
@@ -40,7 +42,7 @@ const AnalysisDashboard = () => {
       { id: 12, displayText: "Verificar se há interações indicadas para aplicar na versão web.", type: 'manual' },
       { id: 13, displayText: "Verificar se há indicações para o Design criar o QR Code das interações para o livro off.", type: 'manual' },
       { id: 14, displayText: "Verificar se há conteúdos de curadoria como vídeos, livros, filmes, artigos, para complementar os estudos.", type: 'auto' },
-      { id: 15, displayText: "Verificar a quantidade de questões: (Componentes de 33h: mínimo de 4 questões, 67h: mínimo de 7 questões, 100h: mínimo de 10 questões).", type: 'auto' },
+      { id: 15, textForAI: `Este critério deve ser SEMPRE 'Aprovado'. Sua tarefa é contar o número total de questões na seção 'Exercitando' de TODA a apostila. Após contar, classifique a carga horária com base na regra: 4+ questões = 33h, 7+ questões = 67h, 10+ questões = 100h. Use a faixa que melhor se encaixa (ex: 8 questões = 67h). Na 'justificativa', informe o resultado. Exemplo: 'Foram encontradas 8 questões no total, compatível com um componente de 67h.' Se encontrar menos de 4 questões, informe. Exemplo: 'Foram encontradas apenas 3 questões, o que é insuficiente para a carga horária mínima.'`, displayText: "Verificar a quantidade de questões e a carga horária correspondente.",  type: 'auto'},      
       { id: 16, displayText: "Verificar se há conteúdo e informações suficientes no Livro que dê base para o aluno realizar tanto os exercícios, quanto as atividades do Praticando.", type: 'auto' },
       { id: 17, displayText: "Verificar se os exercícios com questões objetivas seguem o padrão de 4 opções de respostas (Obs.: Indicar no campo 'Comentários' o Gabarito).", type: 'auto' },
       { id: 18, displayText: "Verificar se os enunciados dos exercícios estão contextualizados, se aplicando a situações reais.", type: 'auto' },
@@ -243,6 +245,37 @@ const AnalysisDashboard = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const handleExportPDF = () => {
+        if (!analysisResult) return;
+
+        const doc = new jsPDF();
+        
+        doc.setFontSize(20);
+        doc.text("Relatório de Análise - Versão Estudante", 14, 22);
+        
+        doc.setFontSize(12);
+        doc.text(`Pontuação Final: ${analysisResult.pontuacaoFinal}%`, 14, 32);
+
+        const tableColumn = ["ID", "Critério", "Status", "Justificativa"];
+        const tableRows = analysisResult.analise.map(item => [
+            item.criterio_id,
+            item.criterio,
+            item.manualEdit ? `${item.status} (Editado)` : item.status,
+            item.justificativa || "N/A"
+        ]);
+
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 40,
+            theme: 'striped',
+            headStyles: { fillColor: [41, 128, 185] },
+            styles: { fontSize: 8 },
+        });
+
+        doc.save("relatorio-analise-estudante.pdf");
     };
 
     return (

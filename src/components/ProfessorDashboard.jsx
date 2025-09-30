@@ -5,6 +5,8 @@ import FileUploadSection from './FileUploadSection';
 import ResultsModal from './ResultsModal';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import mammoth from "mammoth";
+import jsPDF from 'jspdf'; // <-- IMPORTADO
+import 'jspdf-autotable'; // <-- IMPORTADO
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
@@ -139,6 +141,37 @@ const ProfessorDashboard = () => {
         } finally {
             setIsLoading(false);
         }
+    };
+
+         const handleExportPDF = () => {
+        if (!analysisResult) return;
+
+        const doc = new jsPDF();
+        
+        doc.setFontSize(20);
+        doc.text("Relatório de Análise - Versão Professor", 14, 22);
+        
+        doc.setFontSize(12);
+        doc.text(`Pontuação Final: ${analysisResult.pontuacaoFinal}%`, 14, 32);
+
+        const tableColumn = ["ID", "Critério", "Status", "Justificativa"];
+        const tableRows = analysisResult.analise.map(item => [
+            item.criterio_id,
+            item.criterio,
+            item.status,
+            item.justificativa || "N/A"
+        ]);
+
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: 40,
+            theme: 'striped',
+            headStyles: { fillColor: [22, 160, 133] },
+            styles: { fontSize: 8 },
+        });
+
+        doc.save("relatorio-analise-professor.pdf");
     };
 
     return (
