@@ -1,4 +1,3 @@
-// src/components/ResultsModal.jsx
 import React, { useState, useEffect } from 'react';
 import { 
     Modal, 
@@ -18,11 +17,10 @@ import {
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf'; 
 
-// Bibliotecas para gerar o PDF
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- MUDANÇA NA IMPORTAÇÃO
+import autoTable from 'jspdf-autotable';
 
 const style = {
     position: 'absolute',
@@ -72,7 +70,6 @@ const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSug
             item.justificativa || "N/A"
         ]);
 
-        // ✅ CORREÇÃO AQUI: Chamamos autoTable como uma função, passando o 'doc'
         autoTable(doc, {
             head: [tableColumn],
             body: tableRows,
@@ -103,7 +100,7 @@ const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSug
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <Box>
                         <Typography variant="h5" gutterBottom>Relatório de Análise Detalhado</Typography>
-                        <Typography variant="h6" gutterBottom>Pontuação Final: {results.pontuacaoFinal}%</Typography>
+                        <Typography variant="h6" gutterBottom>Pontuação Final: {results.pontuacaoFinal}% de Aprovação</Typography>
                     </Box>
                     
                     <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
@@ -115,11 +112,16 @@ const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSug
                         >
                             {showAll ? `Mostrar Apenas Reprovados (${reprovados.length})` : `Mostrar Todos os Critérios (${results.analise.length})`}
                         </Button>
-                        <Tooltip title="Exportar Relatório em PDF">
-                            <IconButton onClick={handleExportPDF} color="primary">
-                                <PictureAsPdfIcon />
-                            </IconButton>
-                        </Tooltip>
+                        
+                        <Button
+                            variant="contained"
+                            color="primary"
+                            size="small"
+                            startIcon={<PictureAsPdfIcon />}
+                            onClick={handleExportPDF}
+                        >
+                            Baixar PDF
+                        </Button>
                     </Box>
                 </Box>
 
@@ -148,7 +150,7 @@ const ResultsModal = ({ open, onClose, results, onEditCriterion, criteriaWithSug
                                             {item.status === 'Reprovado' && onEditCriterion && (
                                                 <Tooltip title={hasSuggestion ? "Ver Sugestão de Correção (IA)" : "Marcar como Corrigido"}>
                                                     <IconButton size="small" onClick={() => onEditCriterion(item)}>
-                                                        <EditIcon color={hasSuggestion ? "success" : "action"} />
+                                                        <EditIcon color={hasSuggestion ? "primary" : "action"} />
                                                     </IconButton>
                                                 </Tooltip>
                                             )}

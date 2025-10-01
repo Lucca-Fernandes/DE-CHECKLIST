@@ -53,7 +53,7 @@ const AnalysisDashboard = () => {
       { id: 23, displayText: "Verificar se o autor indicou Recursos pedagógicos como jogos, games, podcasts, simulações ou tutoriais (Obs.: Facultativo).", type: 'auto' },
       { id: 24, textForAI: "Para CADA capítulo do documento, verifique se os títulos das seções 'Mapa Mental' estão presentes textualmente. A simples menção do título 'Mapa Mental' é suficiente para aprovação, pois o conteúdo da imagem não pode ser analisado. Se algum capítulo não contiver a menção textual, o status deve ser 'Reprovado', e a justificativa deve listar especificamente quais capítulos estão incompletos.",displayText: "Verificar se há recapitulando/mapa mental em todos os capítulos.", type: 'auto' },
       { id: 25, textForAI: "Este critério é facultativo e deve ser sempre 'Aprovado'. Verifique se, existem 'Recapitulando' aos finais dos capítulos. Na justificativa, apenas descreva o que encontrou. Exemplo: 'O documento possui recapitulações ao final de cada capítulo.' Ou 'Nenhuma recapitulação foi encontrada.'", displayText: "Verificar se há recapitulando (Obs.: Facultativo).", type: 'auto' },
-      { id: 26, displayText: "Verificar se há as Marcações de Capítulos, Seções e SubTags (#) nos livros.", type: 'auto' },
+    { id: 26, textForAI: `Sua tarefa é verificar a formatação correta das marcações (tags) no documento. A regra principal é que toda tag DEVE começar com '#' e terminar com '#', sem espaços entre o símbolo e a palavra (ex: #SAIBAMAIS#). O critério deve ser 'Reprovado' APENAS se você encontrar tags mal formatadas (ex: '#SAIBAMAIS' ou 'DICAS#'). Se todas as tags encontradas seguirem o padrão '#PALAVRA#', ou se nenhuma tag da lista abaixo for utilizada, o critério deve ser 'Aprovado'. A simples ausência de subtags não é motivo para reprovação. Para sua referência, as tags esperadas são: #SAIBAMAIS#, #SAIBA MAIS#, #CURIOSIDADE#, #DICAS#, #FIQUEATENTO#, #FIQUE ATENTO#, #ATENCAO#, #ATENÇÃO#, #AQUINOMARANHAO#, #AQUINOMARANHÃO#, #AQUI NO MARANHAO#, #FIQUELIGADO#, #FIQUE LIGADO#, #DESTAQUE#, #QUADRO#, #CITACAO#, #TOOLTIP#, #TOOLTIPTITULO#, #Capítulo#, #CAPITULO#, #FONTE#, #QUEBRADEPAGINA#, #TITULO2#, #TITULO3#, #TITULOTABELA#.`, displayText: "Verificar se há as Marcações de Capítulos, Seções e SubTags (#) nos livros.", type: 'auto' },        
       { id: 27, displayText: "Verificar o padrão de nomeação dos arquivos, conforme encaminhado pela Ponto Edu.", type: 'manual' },
       { id: 28, displayText: "Verificar as referências bibliográficas ao final do livro.", type: 'auto' },
       { id: 29, displayText: "Verificar se o conteúdo do PPT destinado à videoaula do professor, está coerente com o conteúdo trabalhado no livro do professor.", type: 'manual' },
@@ -306,7 +306,7 @@ const AnalysisDashboard = () => {
                 <Paper elevation={3} sx={{ mt: 4, p: 3, textAlign: 'center' }}>
                     <Typography variant="h5" gutterBottom>Análise Concluída</Typography>
                     <Typography variant="h6">
-                        Pontuação da Análise Automática: {analysisResult.pontuacaoFinal}%
+                        Pontuação da Análise Automática: {analysisResult.pontuacaoFinal}% de Aprovação
                     </Typography>
                     <Button 
                         variant="contained" 
