@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Grid, Typography, Box, LinearProgress, Paper, Button, FormControl, InputLabel, Select, MenuItem } from '@mui/material';
+// 1. Adicionado CircularProgress para o novo indicador de carregamento de links
+import { Container, Grid, Typography, Box, LinearProgress, Paper, Button, FormControl, Autocomplete, TextField, CircularProgress } from '@mui/material'; 
 import FileUploadSection from './FileUploadSection';
 import ResultsModal from './ResultsModal';
 import CorrectionModal from './CorrectionModal';
@@ -12,7 +13,7 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 const BACKEND_API_URL = 'http://localhost:5000';
 const genAI = new GoogleGenerativeAI(API_KEY);
 
-const criteriaWithSuggestions = [1, 2, 5, 11, 15]; 
+const criteriaWithSuggestions = [1, 2, 5, 11, 15];
 
 const AnalysisDashboard = () => {
     const [studentFile, setStudentFile] = useState(null);
@@ -25,9 +26,14 @@ const AnalysisDashboard = () => {
     const [fileContent, setFileContent] = useState('');
     const [isGeneratingSuggestion, setIsGeneratingSuggestion] = useState(false);
     const [suggestion, setSuggestion] = useState(null);
-    const [selectedEmenta, setSelectedEmenta] = useState('');
+    const [selectedEmenta, setSelectedEmenta] = useState(null); // Modificado para null
     const [ementas, setEmentas] = useState([]);
     const [isLoadingEmentas, setIsLoadingEmentas] = useState(true);
+
+    // 2. Novos estados para controlar a análise de links
+    const [isAnalyzingLinks, setIsAnalyzingLinks] = useState(false);
+    const [linkAnalysisMessage, setLinkAnalysisMessage] = useState('');
+
 
     useEffect(() => {
         const fetchEmentas = async () => {
@@ -224,29 +230,22 @@ const AnalysisDashboard = () => {
             "displayText": "Validar links externos.",
             "type": "auto",
             "textForAI": `
-                Você é um especialista em curadoria de conteúdo digital para materiais didáticos. Sua tarefa é analisar os links externos fornecidos na apostila para garantir que eles estão funcionando e que seu conteúdo é relevante e complementar ao material principal.
+                Você é um curador de conteúdo que recebeu um relatório pré-analisado sobre os links externos de uma apostila. Sua tarefa é consolidar essa informação.
 
-                **APOSTILA PARA CONTEXTO:**
+                **RELATÓRIO DA ANÁLISE DE LINKS (FEITA POR UMA FERRAMENTA EXTERNA QUE ACESSOU CADA LINK):**
                 ---
-                ${fileContent}
-                ---
-
-                **LISTA DE LINKS PARA VALIDAR:**
-                ---
-                ${'${links}'} 
+                \${link_summaries} 
                 ---
 
-                **PASSOS PARA A ANÁLISE:**
-                1.  **Análise de Relevância:** Para cada link da lista, avalie se o conteúdo da página de destino está diretamente relacionado aos tópicos discutidos na apostila. O link deve aprofundar um conceito, fornecer um exemplo prático ou oferecer um recurso de estudo complementar.
-                2.  **Verificação de Status (Conceitual):** Verifique se os links parecem ser válidos e não estão quebrados (ex: erro 404). Como você não pode acessá-los em tempo real, baseie sua análise na estrutura do URL e no contexto em que ele aparece na apostila. Por exemplo, um link para um grande portal de notícias ou uma instituição educacional é provavelmente válido.
-                
-                **DETERMINAÇÃO DO STATUS:**
-                -   **Aprovado:** Se TODOS os links forem relevantes para o conteúdo da apostila e parecerem estruturalmente válidos.
-                -   **Reprovado:** Se pelo menos UM link levar a conteúdo que não tem relação com a apostila, ou se algum link parecer quebrado ou suspeito.
-
-                **JUSTIFICATIVA:**
-                -   Se **Aprovado**, a justificativa deve ser uma string vazia ("").
-                -   Se **Reprovado**, a justificativa deve listar o(s) link(s) problemático(s) e explicar o motivo (ex: "O link 'http://exemplo.com' não tem relação com o capítulo 3" ou "O link 'http://exemplo/artigo-quebrado' parece ser inválido.").
+                **SUA TAREFA:**
+                1.  **Revisão do Relatório:** Leia o relatório acima.
+                2.  **Determinação do Status Final:**
+                    -   Se **TODOS** os links no relatório tiverem o status "Aprovado", o status final é **Aprovado**.
+                    -   Se pelo menos **UM** link tiver o status "Reprovado" (por exemplo, por conteúdo irrelevante, erro de acesso, etc.), o status final é **Reprovado**.
+                    -   Se o relatório indicar "Nenhum link externo encontrado", o status final é **Aprovado**.
+                3.  **Justificativa:**
+                    -   Se o status final for **Aprovado**, a justificativa deve ser uma string vazia ("").
+                    -   Se o status final for **Reprovado**, a justificativa deve listar APENAS os links problemáticos e suas respectivas descrições do relatório. Exemplo: "O link 'http://exemplo.com/quebrado' foi reprovado pois não foi possível acessar seu conteúdo."
 
                 **FORMATO JSON DE SAÍDA OBRIGATÓRIO:**
                 {"analise": [{"criterio": 21, "status": "<Aprovado ou Reprovado>", "justificativa": "<string>"}]}
@@ -345,7 +344,7 @@ const AnalysisDashboard = () => {
             const result = await model.generateContent(correctionPrompt);
             const response = await result.response;
             let text = response.text();
-            
+
             text = text.replace(/```json/g, '').replace(/```/g, '').trim();
             const startIndex = text.indexOf('{');
             const endIndex = text.lastIndexOf('}');
@@ -363,7 +362,7 @@ const AnalysisDashboard = () => {
         }
     };
 
-    const handleEditClick = (criterion) => {
+     const handleEditClick = (criterion) => {
         setCorrectionTarget(criterion);
         setIsCorrectionModalOpen(true);
         if (criteriaWithSuggestions.includes(criterion.criterio)) {
@@ -390,6 +389,47 @@ const AnalysisDashboard = () => {
                 reject(new Error("Formato de arquivo não suportado. Use .docx"));
             }
         });
+    };
+
+    const handleRealLinkValidation = async (links) => {
+        if (!links || links.length === 0) {
+            return "Nenhum link externo encontrado no documento.";
+        }
+
+        setIsAnalyzingLinks(true);
+        setLinkAnalysisMessage(`Analisando ${links.length} link(s) em tempo real...`);
+        setError(null);
+
+        try {
+            const response = await fetch(`${BACKEND_API_URL}/api/analyze-links`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ links }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Falha ao validar links no backend.');
+            }
+
+            const data = await response.json();
+            
+            // Formata o resultado para injetar no prompt do Gemini
+            const linkSummaries = data.analysis.map(
+                r => `- Link: ${r.link}\n  - Status: ${r.status}\n  - Descrição: ${r.descricao}`
+            ).join('\n');
+            
+            return linkSummaries;
+
+        } catch (err) {
+            console.error(err);
+            setError(`Erro na validação de links: ${err.message}`);
+            // Retorna null para indicar que a análise principal deve ser interrompida
+            return null; 
+        } finally {
+            setIsAnalyzingLinks(false);
+            setLinkAnalysisMessage('');
+        }
     };
 
     const extractLinks = async (extractedText) => {
@@ -435,29 +475,38 @@ const AnalysisDashboard = () => {
     };
 
     const handleStudentAnalysis = async () => {
-        if (!studentFile) {
-            setError("Por favor, selecione um arquivo para análise.");
+        if (!studentFile || !selectedEmenta) {
+            setError('Por favor, selecione um arquivo e uma ementa.');
             return;
         }
-        if (!selectedEmenta) {
-            setError("Por favor, selecione uma ementa antes de realizar a análise.");
-            return;
-        }
+
         setIsLoading(true);
-        setAnalysisResult(null);
         setError(null);
-        const criteriaForAI = fullCriteriaList;
+        setAnalysisResult(null);
+
         try {
             const extractedText = await extractTextFromFile(studentFile);
             setFileContent(extractedText);
 
-            // Extrair links
-            const links = await extractLinks(extractedText);
-            console.log("Links extraídos (Análise Completa - Aluno):", links);
+            // 5. INTEGRAÇÃO DA VALIDAÇÃO DE LINKS NA ANÁLISE PRINCIPAL
+            // Etapa 1: Extrair links do texto
+            const urlRegex = /(https?:\/\/[^\s]+)/g;
+            const links = extractedText.match(urlRegex) || [];
+            const uniqueLinks = [...new Set(links)];
+            
+            // Etapa 2: Chamar o backend para validar os links
+            const linkSummaries = await handleRealLinkValidation(uniqueLinks);
 
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+            // Se a validação de links falhar, interrompe a análise
+            if (linkSummaries === null) {
+                setIsLoading(false);
+                return;
+            }
+
+            // Etapa 3: Preparar o prompt final para o Gemini
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Ou o modelo que preferir
             const prompt = `
-                Você é um especialista educacional na criação e curadoria de apostilas para estudantes do ensino médio do estado do Maranhão. Sua tarefa é analisar a APOSTILA e avaliá-la criteriosamente, usando conceitos de análise e pedagogia e com base nos seguintes critérios. Para os critérios 0, 4, 6 e 9, utilize as informações da ementa selecionada abaixo para contextualizar a análise.
+                Você é um especialista educacional na criação e curadoria de apostilas para estudantes do ensino médio do estado do Maranhão. Sua tarefa é analisar a APOSTILA e avaliá-la criteriosamente, usando conceitos de análise e pedagogia e com base nos seguintes critérios. Para os critérios que dependem da ementa, utilize as informações abaixo.
 
                 **EMENTA SELECIONADA:**
                 - Nome da Disciplina: ${selectedEmenta.nome_disciplina}
@@ -466,7 +515,14 @@ const AnalysisDashboard = () => {
                 - Carga Horária: ${selectedEmenta.carga_horaria}
 
                 **LISTA DE CRITÉRIOS PARA ANÁLISE:**
-                ${criteriaForAI.map(c => `${c.id}. ${c.textForAI || c.displayText}`).join('\n')}
+                ${fullCriteriaList.map(c => {
+                    let textForAI = c.textForAI;
+                    // Injeta o resumo dos links no critério 21
+                    if (c.id === 21) {
+                        textForAI = textForAI.replace('${link_summaries}', linkSummaries);
+                    }
+                    return `${c.id}. ${textForAI}`;
+                }).join('\n\n')}
                 
                 **APOSTILA COMPLETA PARA ANÁLISE:**
                 ---
@@ -476,42 +532,40 @@ const AnalysisDashboard = () => {
                 **FORMATO JSON DE SAÍDA OBRIGATÓRIO (sem pontuacaoFinal):**
                 {"analise": [{"criterio": <number>, "status": "<Aprovado ou Reprovado>", "justificativa": "<string>"}]}
             `;
+
+            // ... (continua com a chamada ao Gemini e processamento do resultado)
             const result = await model.generateContent(prompt);
             const response = await result.response;
             let text = response.text();
-            let jsonResponse;
-            try {
-                text = text.replace(/```json/g, '').replace(/```/g, '').trim();
-                const startIndex = text.indexOf('{');
-                const endIndex = text.lastIndexOf('}');
-                if (startIndex > -1 && endIndex > -1 && endIndex > startIndex) {
-                    const jsonString = text.substring(startIndex, endIndex + 1);
-                    jsonResponse = JSON.parse(jsonString);
-                } else {
-                    throw new Error("Nenhum objeto JSON válido foi encontrado na resposta.");
-                }
-            } catch (parseError) {
-                console.error("Erro ao fazer o parse do JSON da API:", parseError);
-                console.error("Texto recebido da API:", text);
-                throw new Error("A resposta da API não estava em um formato JSON válido.");
+
+            text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const startIndex = text.indexOf('{');
+            const endIndex = text.lastIndexOf('}');
+            if (startIndex === -1 || endIndex === -1) {
+                throw new Error("Resposta da IA não continha um JSON válido.");
             }
+            const jsonString = text.substring(startIndex, endIndex + 1);
+            const jsonResponse = JSON.parse(jsonString);
+
             const approvedCount = jsonResponse.analise.filter(item => item.status === 'Aprovado').length;
-            const totalAutoCriteria = criteriaForAI.length;
-            const score = totalAutoCriteria > 0 ? Math.round((approvedCount / totalAutoCriteria) * 100) : 0;
+            const score = fullCriteriaList.length > 0 ? Math.round((approvedCount / fullCriteriaList.length) * 100) : 0;
+            
             const finalAnalysis = fullCriteriaList.map(criterion => {
                 const autoResult = jsonResponse.analise.find(item => item.criterio === criterion.id);
                 return {
                     criterio: criterion.id,
                     descricao: criterion.displayText,
                     status: autoResult ? autoResult.status : 'Erro',
-                    justificativa: autoResult ? autoResult.justificativa : ''
+                    justificativa: autoResult ? autoResult.justificativa : 'Critério não retornado pela IA.'
                 };
             });
+
             setAnalysisResult({
                 pontuacaoFinal: score,
                 analise: finalAnalysis
             });
             setIsModalOpen(true);
+
         } catch (e) {
             console.error(e);
             setError("Ocorreu um erro ao analisar o documento. Se o problema persistir, verifique sua chave de API e as permissões do modelo.");
@@ -615,90 +669,93 @@ const AnalysisDashboard = () => {
     };
 
     const handleExportPDF = () => {
-    if (!analysisResult) return;
+        if (!analysisResult) return;
 
-    const doc = new jsPDF();
-    
-    doc.setFontSize(20);
-    doc.text(`Relatório de Análise - Versão Estudante (${selectedEmenta ? selectedEmenta.nome_disciplina : 'Sem Ementa'})`, 14, 22);
-    
-    doc.setFontSize(12);
-    doc.text(`Pontuação Final: ${analysisResult.pontuacaoFinal}%`, 14, 32);
-    if (selectedEmenta) {
-        doc.text(`Ementa Selecionada: ${selectedEmenta.nome_disciplina}`, 14, 40);
-        doc.text(`Objetivos da Ementa: ${selectedEmenta.objetivos}`, 14, 48);
-        doc.text(`Conteúdo Programático: ${selectedEmenta.conteudo_programatico}`, 14, 56);
-    }
+        const doc = new jsPDF();
 
-    const tableColumn = ["ID", "Critério", "Status", "Justificativa"];
+        doc.setFontSize(20);
+        doc.text(`Relatório de Análise - Versão Estudante (${selectedEmenta ? selectedEmenta.nome_disciplina : 'Sem Ementa'})`, 14, 22);
 
-    const sortedAnalysis = [...analysisResult.analise].sort((a, b) => {
-        const aIsReprovado = a.status.includes('Reprovado');
-        const bIsReprovado = b.status.includes('Reprovado');
+        doc.setFontSize(12);
+        doc.text(`Pontuação Final: ${analysisResult.pontuacaoFinal}%`, 14, 32);
+        if (selectedEmenta) {
+            doc.text(`Ementa Selecionada: ${selectedEmenta.nome_disciplina}`, 14, 40);
+            doc.text(`Objetivos da Ementa: ${selectedEmenta.objetivos}`, 14, 48);
+            doc.text(`Conteúdo Programático: ${selectedEmenta.conteudo_programatico}`, 14, 56);
+        }
 
-        if (aIsReprovado && !bIsReprovado) return -1; 
-        if (!aIsReprovado && bIsReprovado) return 1;  
-        
-        return a.criterio - b.criterio;
-    });
+        const tableColumn = ["ID", "Critério", "Status", "Justificativa"];
 
-    const tableRows = sortedAnalysis.map(item => [
-        item.criterio,
-        item.descricao,
-        item.manualEdit ? `${item.status} (Editado)` : item.status,
-        item.justificativa || "N/A"
-    ]);
- 
-    doc.autoTable({
-        head: [tableColumn],
-        body: tableRows,
-        startY: selectedEmenta ? 64 : 40,
-        headStyles: { fillColor: [41, 128, 185] },
-        styles: { fontSize: 8 },
-        didParseCell: function (data) {
-            
-            if (data.section === 'body') {
-                const status = data.row.raw[2].toString(); 
+        const sortedAnalysis = [...analysisResult.analise].sort((a, b) => {
+            const aIsReprovado = a.status.includes('Reprovado');
+            const bIsReprovado = b.status.includes('Reprovado');
 
-                if (status.includes('Aprovado')) {
-                    data.cell.styles.fillColor = [220, 245, 220]; 
-                } else if (status.includes('Reprovado')) {
-                    data.cell.styles.fillColor = [255, 220, 220]; 
+            if (aIsReprovado && !bIsReprovado) return -1;
+            if (!aIsReprovado && bIsReprovado) return 1;
+
+            return a.criterio - b.criterio;
+        });
+
+        const tableRows = sortedAnalysis.map(item => [
+            item.criterio,
+            item.descricao,
+            item.manualEdit ? `${item.status} (Editado)` : item.status,
+            item.justificativa || "N/A"
+        ]);
+
+        doc.autoTable({
+            head: [tableColumn],
+            body: tableRows,
+            startY: selectedEmenta ? 64 : 40,
+            headStyles: { fillColor: [41, 128, 185] },
+            styles: { fontSize: 8 },
+            didParseCell: function (data) {
+
+                if (data.section === 'body') {
+                    const status = data.row.raw[2].toString();
+
+                    if (status.includes('Aprovado')) {
+                        data.cell.styles.fillColor = [220, 245, 220];
+                    } else if (status.includes('Reprovado')) {
+                        data.cell.styles.fillColor = [255, 220, 220];
+                    }
                 }
             }
-        }
-    });
+        });
 
-    doc.save(`relatorio-analise-estudante-${selectedEmenta ? selectedEmenta.nome_disciplina : 'sem-ementa'}.pdf`);
-};
+        doc.save(`relatorio-analise-estudante-${selectedEmenta ? selectedEmenta.nome_disciplina : 'sem-ementa'}.pdf`);
+    };
+
 
     return (
         <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
             <Grid container spacing={4} justifyContent="center">
                 <Grid item xs={12} md={8}>
-                    <FormControl fullWidth sx={{ mb: 2 }}>
-                        <InputLabel id="ementa-select-label">Selecionar Ementa</InputLabel>
-                        <Select
-                            labelId="ementa-select-label"
-                            value={selectedEmenta ? selectedEmenta.id : ''}
-                            label="Selecionar Ementa"
-                            onChange={(e) => {
-                                const ementa = ementas.find(em => em.id === e.target.value);
-                                setSelectedEmenta(ementa || '');
-                            }}
-                            disabled={isLoadingEmentas}
-                        >
-                            {isLoadingEmentas ? (
-                                <MenuItem value="" disabled>Carregando ementas...</MenuItem>
-                            ) : (
-                                ementas.map(ementa => (
-                                    <MenuItem key={ementa.id} value={ementa.id}>
-                                        {ementa.nome_disciplina}
-                                    </MenuItem>
-                                ))
-                            )}
-                        </Select>
-                    </FormControl>
+                    <Box sx={{ mb: 2 }}>
+                        <FormControl fullWidth>
+                            <Autocomplete
+                                id="ementa-autocomplete"
+                                options={ementas}
+                                getOptionLabel={(option) => option.nome_disciplina || ''}
+                                value={selectedEmenta}
+                                onChange={(event, newValue) => {
+                                    setSelectedEmenta(newValue);
+                                }}
+                                loading={isLoadingEmentas}
+                                loadingText="Carregando ementas..."
+                                noOptionsText="Nenhuma ementa encontrada"
+                                disabled={isLoadingEmentas || isLoading}
+                                renderInput={(params) => (
+                                    <TextField
+                                        {...params}
+                                        label="Selecionar Ementa"
+                                        placeholder="Digite para pesquisar uma disciplina"
+                                        variant="outlined"
+                                    />
+                                )}
+                            />
+                        </FormControl>
+                    </Box>
                     <FileUploadSection
                         title="Versão do Estudante"
                         onFileSelect={setStudentFile}
@@ -706,53 +763,52 @@ const AnalysisDashboard = () => {
                         onExerciseAnalyze={handleExerciseAnalysis}
                         isLoading={isLoading}
                     />
-                    
                 </Grid>
             </Grid>
 
-            {isLoading && (
+            {/* 6. INDICADOR DE CARREGAMENTO PARA A ANÁLISE DE LINKS */}
+            {(isAnalyzingLinks || isLoading) && (
                 <Box sx={{ width: '100%', mt: 13 }}>
                     <Typography textAlign="center" sx={{ mb: 2 }}>
-                        {analysisResult ? "Analisando exercícios..." : "Analisando documento completo..."}
+                        {isAnalyzingLinks ? linkAnalysisMessage : "Analisando documento completo..."}
                     </Typography>
-                    <LinearProgress />
+                    {isAnalyzingLinks ? <CircularProgress sx={{ display: 'block', margin: 'auto' }} /> : <LinearProgress />}
                 </Box>
             )}
+
             {error && (
                 <Typography color="error" sx={{ textAlign: 'center', mt: 12 }}>
                     {error}
                 </Typography>
             )}
+            
             {!isLoading && analysisResult && (
-                <Paper 
-        elevation={3} 
-        sx={{ 
-            mt: 15, 
-            p: { xs: 2, md: 3 },
-            textAlign: 'center' 
-        }}
-    >
-        <Typography variant="h5" gutterBottom>Análise Concluída</Typography>
-        <Typography variant="h6">
-            Pontuação da Análise Automática: {analysisResult.pontuacaoFinal}% de Aprovação
-        </Typography>
-        <Button 
-            variant="contained" 
-            sx={{ mt: 2 }} 
-            onClick={() => setIsModalOpen(true)}
-        >
-            Ver Relatório Detalhado
-        </Button>
-    </Paper>
-)}
-                <ResultsModal 
-                    open={isModalOpen}
-                    onClose={() => setIsModalOpen(false)}
-                    results={analysisResult}
-                    onEditCriterion={handleEditClick}
-                    criteriaWithSuggestions={criteriaWithSuggestions}
-                    onExportPDF={handleExportPDF} 
-                />
+                <Paper
+                    elevation={3}
+                    sx={{ mt: 15, p: { xs: 2, md: 3 }, textAlign: 'center' }}
+                >
+                    <Typography variant="h5" gutterBottom>Análise Concluída</Typography>
+                    <Typography variant="h6">
+                        Pontuação da Análise Automática: {analysisResult.pontuacaoFinal}% de Aprovação
+                    </Typography>
+                    <Button
+                        variant="contained"
+                        sx={{ mt: 2 }}
+                        onClick={() => setIsModalOpen(true)}
+                    >
+                        Ver Relatório Detalhado
+                    </Button>
+                </Paper>
+            )}
+            
+            <ResultsModal
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                results={analysisResult}
+                onEditCriterion={handleEditClick}
+                criteriaWithSuggestions={criteriaWithSuggestions}
+                onExportPDF={handleExportPDF}
+            />
             <CorrectionModal
                 open={isCorrectionModalOpen}
                 onClose={() => setIsCorrectionModalOpen(false)}
