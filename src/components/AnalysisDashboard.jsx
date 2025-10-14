@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 // 1. Adicionado CircularProgress para o novo indicador de carregamento de links
-import { Container, Grid, Typography, Box, LinearProgress, Paper, Button, FormControl, Autocomplete, TextField, CircularProgress } from '@mui/material'; 
+import { Container, Grid, Typography, Box, LinearProgress, Paper, Button, FormControl, Autocomplete, TextField, CircularProgress } from '@mui/material';
 import FileUploadSection from './FileUploadSection';
 import ResultsModal from './ResultsModal';
 import CorrectionModal from './CorrectionModal';
@@ -226,33 +226,84 @@ const AnalysisDashboard = () => {
             "textForAI": `Você é um bibliógrafo acadêmico. Sua tarefa é verificar a presença e completude de referências bibliográficas no final da apostila, considerando a ementa: ${selectedEmenta ? selectedEmenta.conteudo_programatico : '[CONTEUDO_PROGRAMATICO]'}. Passo 1: Localize a seção de referências. Passo 2: Avalie formato e cobertura. Aprove se completa; reprove se ausente ou incompleta. Se reprovado, na justificativa, indique o problema, como 'Referências ausentes para fontes citadas no Capítulo 2'.`
         },
         {
-            "id": 21,
-            "displayText": "Validar links externos.",
-            "type": "auto",
-            "textForAI": `
-                Você é um curador de conteúdo que recebeu um relatório pré-analisado sobre os links externos de uma apostila. Sua tarefa é consolidar essa informação.
+    "id": 21,
+    "displayText": "Validar links externos.",
+    "type": "auto",
+    "textForAI": `
+        Você é um curador de conteúdo educacional especializado em alinhamento curricular para materiais didáticos do ensino médio no Maranhão. Sua tarefa é analisar os links externos da apostila com base no relatório pré-analisado, verificando se o conteúdo de cada link está alinhado com o contexto e os temas da apostila sobre 'Gestão operacional e logística em eventos'. Ignore se o conteúdo é 'educacional' de forma genérica; foque apenas no alinhamento específico com a apostila.
 
-                **RELATÓRIO DA ANÁLISE DE LINKS (FEITA POR UMA FERRAMENTA EXTERNA QUE ACESSOU CADA LINK):**
-                ---
-                \${link_summaries} 
-                ---
+        **RELATÓRIO DA ANÁLISE DE LINKS (FEITA POR UMA FERRAMENTA EXTERNA QUE ACESSOU CADA LINK):**
+        ---
+        \${link_summaries}
+        ---
 
-                **SUA TAREFA:**
-                1.  **Revisão do Relatório:** Leia o relatório acima.
-                2.  **Determinação do Status Final:**
-                    -   Se **TODOS** os links no relatório tiverem o status "Aprovado", o status final é **Aprovado**.
-                    -   Se pelo menos **UM** link tiver o status "Reprovado" (por exemplo, por conteúdo irrelevante, erro de acesso, etc.), o status final é **Reprovado**.
-                    -   Se o relatório indicar "Nenhum link externo encontrado", o status final é **Aprovado**.
-                3.  **Justificativa:**
-                    -   Se o status final for **Aprovado**, a justificativa deve ser uma string vazia ("").
-                    -   Se o status final for **Reprovado**, a justificativa deve listar APENAS os links problemáticos e suas respectivas descrições do relatório. Exemplo: "O link 'http://exemplo.com/quebrado' foi reprovado pois não foi possível acessar seu conteúdo."
+        **SUA TAREFA:**
+        1. **Revisão do Relatório:** Leia o relatório acima, que inclui descrições do conteúdo de cada link.
+        2. **Análise de Alinhamento:**
+           - Para cada link com status "Pendente", compare a descrição do seu conteúdo com os temas abordados na apostila (ex.: logística de eventos, acessibilidade, gestão financeira, criação de artes gráficas, indicadores de desempenho).
+           - Verifique se o conteúdo do link complementa, exemplifica ou aprofunda temas presentes na apostila (ex.: um link sobre eventos culturais no Maranhão é alinhado se a apostila discutir eventos culturais).
+           - Considere contexto: Links para eventos, notícias ou recursos práticos são aceitáveis se diretamente relacionados aos tópicos da apostila.
+           - **Aprovado por link:** Se o conteúdo se alinha com pelo menos um tema da apostila.
+           - **Reprovado por link:** If the content is irrelevant, misaligned, or contradictory to the apostila’s themes.
+        3. **Links com Status "Reprovado":**
+           - Inclua todos os links com status "Reprovado" (ex.: redes sociais ou links inacessíveis) na lista de "Análise Manual", mantendo a descrição fornecida pelo relatório.
+        4. **Determinação do Status Final:**
+           - **Aprovado:** Se TODOS os links com status "Pendente" estiverem alinhados.
+           - **Reprovado:** Se pelo menos UM link com status "Pendente" não estiver alinhado.
+        5. **Saída Estruturada:**
+           - Retorne um objeto JSON com:
+             - "status": "Aprovado" ou "Reprovado".
+             - "detalhes": Um objeto com duas listas:
+               - "Aprovados": Links com status "Pendente" que são relevantes, com justificativa de relevância.
+               - "Análise Manual": Links com status "Reprovado", com a descrição do relatório.
+           - Se "Aprovado", a justificativa pode ser uma string vazia ("").
+           - Se "Reprovado", a justificativa deve listar os links "Pendente" reprovados com uma breve explicação de desalinhamento.
 
-                **FORMATO JSON DE SAÍDA OBRIGATÓRIO:**
-                {"analise": [{"criterio": 21, "status": "<Aprovado ou Reprovado>", "justificativa": "<string>"}]}
-            `
+        **FORMATO JSON DE SAÍDA OBRIGATÓRIO:**
+        {
+          "analise": [{
+            "criterio": 21,
+            "status": "<Aprovado ou Reprovado>",
+            "justificativa": "<string>",
+            "detalhes": {
+              "Aprovados": [
+                {"link": "<URL>", "descricao": "<descrição do relatório>", "justificativa": "<razão do alinhamento>"},
+                ...
+              ],
+              "Análise Manual": [
+                {"link": "<URL>", "descricao": "<descrição do relatório>"},
+                ...
+              ]
+            }
+          }]
         }
-    ];
 
+        **EXEMPLO DE SAÍDA:**
+        {
+          "analise": [{
+            "criterio": 21,
+            "status": "Aprovado",
+            "justificativa": "",
+            "detalhes": {
+              "Aprovados": [
+                {"link": "https://example.com", "descricao": "Artigo sobre logística", "justificativa": "Alinhado com logística de eventos"},
+                {"link": "https://youtube.com/watch?v=abc", "descricao": "Vídeo sobre planejamento de eventos", "justificativa": "Complementa o tema de gestão de eventos"}
+              ],
+              "Análise Manual": [
+                {"link": "https://tiktok.com/abc", "descricao": "Conteúdo de rede social requer verificação manual: https://tiktok.com/abc"},
+                {"link": "https://example.org", "descricao": "Conteúdo inacessível após tentativas. Verifique manualmente o link: https://example.org"}
+              ]
+            }
+          }]
+        }
+
+        **APOSTILA COMPLETA PARA ANÁLISE (USE PARA COMPARAÇÃO DE ALINHAMENTO):**
+        ---
+        \${fileContent}
+        ---
+    `
+}
+    ];
     const handleStatusUpdate = (criterionId, newStatus) => {
         const updatedAnalysis = analysisResult.analise.map(item => {
             if (item.criterio === criterionId) {
@@ -362,7 +413,7 @@ const AnalysisDashboard = () => {
         }
     };
 
-     const handleEditClick = (criterion) => {
+    const handleEditClick = (criterion) => {
         setCorrectionTarget(criterion);
         setIsCorrectionModalOpen(true);
         if (criteriaWithSuggestions.includes(criterion.criterio)) {
@@ -413,19 +464,19 @@ const AnalysisDashboard = () => {
             }
 
             const data = await response.json();
-            
+
             // Formata o resultado para injetar no prompt do Gemini
             const linkSummaries = data.analysis.map(
                 r => `- Link: ${r.link}\n  - Status: ${r.status}\n  - Descrição: ${r.descricao}`
             ).join('\n');
-            
+
             return linkSummaries;
 
         } catch (err) {
             console.error(err);
             setError(`Erro na validação de links: ${err.message}`);
             // Retorna null para indicar que a análise principal deve ser interrompida
-            return null; 
+            return null;
         } finally {
             setIsAnalyzingLinks(false);
             setLinkAnalysisMessage('');
@@ -493,7 +544,7 @@ const AnalysisDashboard = () => {
             const urlRegex = /(https?:\/\/[^\s]+)/g;
             const links = extractedText.match(urlRegex) || [];
             const uniqueLinks = [...new Set(links)];
-            
+
             // Etapa 2: Chamar o backend para validar os links
             const linkSummaries = await handleRealLinkValidation(uniqueLinks);
 
@@ -516,13 +567,13 @@ const AnalysisDashboard = () => {
 
                 **LISTA DE CRITÉRIOS PARA ANÁLISE:**
                 ${fullCriteriaList.map(c => {
-                    let textForAI = c.textForAI;
-                    // Injeta o resumo dos links no critério 21
-                    if (c.id === 21) {
-                        textForAI = textForAI.replace('${link_summaries}', linkSummaries);
-                    }
-                    return `${c.id}. ${textForAI}`;
-                }).join('\n\n')}
+                let textForAI = c.textForAI;
+                // Injeta o resumo dos links no critério 21
+                if (c.id === 21) {
+                    textForAI = textForAI.replace('${link_summaries}', linkSummaries);
+                }
+                return `${c.id}. ${textForAI}`;
+            }).join('\n\n')}
                 
                 **APOSTILA COMPLETA PARA ANÁLISE:**
                 ---
@@ -549,7 +600,7 @@ const AnalysisDashboard = () => {
 
             const approvedCount = jsonResponse.analise.filter(item => item.status === 'Aprovado').length;
             const score = fullCriteriaList.length > 0 ? Math.round((approvedCount / fullCriteriaList.length) * 100) : 0;
-            
+
             const finalAnalysis = fullCriteriaList.map(criterion => {
                 const autoResult = jsonResponse.analise.find(item => item.criterio === criterion.id);
                 return {
@@ -781,7 +832,7 @@ const AnalysisDashboard = () => {
                     {error}
                 </Typography>
             )}
-            
+
             {!isLoading && analysisResult && (
                 <Paper
                     elevation={3}
@@ -800,7 +851,7 @@ const AnalysisDashboard = () => {
                     </Button>
                 </Paper>
             )}
-            
+
             <ResultsModal
                 open={isModalOpen}
                 onClose={() => setIsModalOpen(false)}

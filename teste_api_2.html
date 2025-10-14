@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Chave da API Perplexity</title>
+    <style>
+        body { font-family: sans-serif; background-color: #f4f4f9; color: #333; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .container { background: white; padding: 2rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); text-align: center; max-width: 500px; }
+        input { width: 95%; padding: 10px; margin-bottom: 1rem; border: 1px solid #ccc; border-radius: 4px; }
+        button { padding: 10px 20px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        #result { margin-top: 1rem; font-weight: bold; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Teste Rápido da Chave de API Perplexity</h1>
+        <p>Cole a nova chave de API (gerada no seu painel da Perplexity) e clique em testar.</p>
+        <input type="text" id="apiKeyInput" placeholder="Sua nova chave de API aqui">
+        <button onclick="runTest()">Testar Chave</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        async function runTest() {
+            const apiKey = document.getElementById('apiKeyInput').value;
+            const resultDiv = document.getElementById('result');
+
+            if (!apiKey) {
+                resultDiv.className = 'error';
+                resultDiv.textContent = 'Erro: Por favor, insira uma chave de API.';
+                return;
+            }
+
+            resultDiv.className = '';
+            resultDiv.textContent = 'Testando...';
+
+            try {
+                // Configuração da requisição para a API da Perplexity
+                const response = await fetch('https://api.perplexity.ai/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}` // A autenticação é feita aqui
+                    },
+                    body: JSON.stringify({
+                        model: "llama-3-sonar-small-32k-online", // Um modelo rápido e online para o teste
+                        messages: [
+                            { role: "user", content: "Diga 'Olá, mundo!'" }
+                        ]
+                    })
+                });
+
+                // Verifica se a resposta da API foi bem-sucedida (ex: erro 401 para chave inválida)
+                if (!response.ok) {
+                    throw new Error(`Erro HTTP! Status: ${response.status} - ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                
+                // Extrai o texto da resposta
+                const text = data.choices[0].message.content;
+
+                resultDiv.className = 'success';
+                resultDiv.textContent = 'Sucesso! A API respondeu: "' + text.trim() + '"';
+
+            } catch (error) {
+                console.error(error);
+                resultDiv.className = 'error';
+                // Mensagem mais útil para erros comuns de chave
+                if (error.message.includes("401")) {
+                     resultDiv.textContent = 'Falha no teste: Chave de API inválida ou não autorizada (Erro 401).';
+                } else {
+                     resultDiv.textContent = 'Falha no teste. Verifique o console (F12) para ver o erro detalhado.';
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>
