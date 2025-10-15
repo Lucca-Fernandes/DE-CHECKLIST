@@ -12,7 +12,7 @@ const app = express();
 const port = process.env.PORT || 5000;
 
 // Middleware
-app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(cors({ origin: 'https://de-checklist.vercel.app',  }));
 app.use(express.json());
 
 // --- CONFIGURAÇÃO DA CONEXÃO COM O BANCO DE DADOS ---
