@@ -10,7 +10,7 @@ import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const BACKEND_API_URL = 'http://localhost:5000';
+const BACKEND_API_URL = 'https://backend-apostila.onrender.com'; 
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 const criteriaWithSuggestions = [1, 2, 5, 11, 15];
